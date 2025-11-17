@@ -12,6 +12,7 @@ build: $(OUT_DIR)
 	docker create --name extract $(IMAGE_NAME)
 	docker cp extract:/$(BINARY_NAME) $(OUT_DIR)/$(BINARY_NAME)
 	docker rm extract
+	sudo setcap "cap_dac_override+ep" $(OUT_DIR)/$(BINARY_NAME)
 
 clean:
 	$(RM) -r $(OUT_DIR)

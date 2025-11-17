@@ -2,7 +2,7 @@ use nix::unistd::execve;
 use std::env;
 use std::error::Error;
 use std::ffi::{CStr, CString};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::process;
 
@@ -51,8 +51,7 @@ fn cgroup() -> Result<(), Box<dyn Error>> {
 
     cgroup_controller_configure()?;
 
-    cgroup_configure("cpuset.mems", b"0")?;
-    cgroup_configure("cpuset.cpus", b"0")?;
+    cgroup_configure("cpu.max", b"1000000 1000000")?;
     cgroup_configure("memory.max", b"1G")?;
     cgroup_configure("pids.max", b"100")?;
 
