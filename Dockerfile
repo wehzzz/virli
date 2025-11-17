@@ -2,7 +2,7 @@ FROM rust:alpine3.22 AS build
 
 WORKDIR /app
 COPY src ./src
-COPY Cargo.toml Cargo.lock .
+COPY Cargo.toml .
 
 RUN cargo build --release
 

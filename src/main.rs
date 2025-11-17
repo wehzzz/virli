@@ -4,6 +4,7 @@ use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
+use std::process;
 
 const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
  Usage: ./mymoulette [-v student_workdir] <-I docker-img|rootfs-path>
@@ -47,9 +48,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn cgroup() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(CGROUP_NAME)?;
 
+    //maybe add data to controllers
+
     cgroup_configure("memory.max", b"1G")?;
     cgroup_configure("cpuset.cpus", b"1")?;
     cgroup_configure("pids.max", b"100")?;
+
+    cgroup_configure("cgroup.procs", process::id().to_string().as_bytes())?;
     Ok(())
 }
 
