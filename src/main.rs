@@ -2,6 +2,8 @@ use nix::unistd::execve;
 use std::env;
 use std::error::Error;
 use std::ffi::{CStr, CString};
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
 
 const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
  Usage: ./mymoulette [-v student_workdir] <-I docker-img|rootfs-path>
@@ -12,6 +14,8 @@ const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
  moulette_prog will be the first program to be launched, must already be in
  the environment
     student_workdir is the directory containing the code to grade";
+
+const CGROUP_NAME: &str = "/sys/fs/cgroup/mymoulette";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -34,6 +38,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let p_env: Vec<&CStr> = vec![];
 
+    cgroup()?;
+
     execve(p_path.as_c_str(), &p_args, &p_env)?;
+    Ok(())
+}
+
+fn cgroup() -> Result<(), Box<dyn Error>> {
+    fs::create_dir_all(CGROUP_NAME)?;
+
+    cgroup_configure("memory.max", b"1G")?;
+    cgroup_configure("cpuset.cpus", b"1")?;
+    cgroup_configure("pids.max", b"100")?;
+    Ok(())
+}
+
+fn cgroup_configure(path: &str, data: &[u8]) -> Result<(), Box<dyn Error>> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .open(format!("{}/{}", CGROUP_NAME, path))?;
+    file.write_all(data)?;
     Ok(())
 }
