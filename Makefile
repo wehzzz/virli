@@ -17,3 +17,5 @@ clean:
 	$(RM) -r $(OUT_DIR)
 	docker rm extract || true
 	docker rmi $(IMAGE_NAME) || true
+
+.PHONY: build clean
