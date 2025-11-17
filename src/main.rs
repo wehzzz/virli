@@ -16,6 +16,7 @@ const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
  the environment
     student_workdir is the directory containing the code to grade";
 
+const CGROUP_CONTROLLER: &str = "/sys/fs/cgroup/cgroup.subtree_control";
 const CGROUP_NAME: &str = "/sys/fs/cgroup/mymoulette";
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -48,13 +49,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn cgroup() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(CGROUP_NAME)?;
 
-    //maybe add data to controllers
+    cgroup_controller_configure()?;
 
+    cgroup_configure("cpuset.mems", b"0")?;
+    cgroup_configure("cpuset.cpus", b"0")?;
     cgroup_configure("memory.max", b"1G")?;
-    cgroup_configure("cpuset.cpus", b"1")?;
     cgroup_configure("pids.max", b"100")?;
 
     cgroup_configure("cgroup.procs", process::id().to_string().as_bytes())?;
+    Ok(())
+}
+
+fn cgroup_controller_configure() -> Result<(), Box<dyn Error>> {
+    let ctrls = ["+cpuset", "+memory", "+pids"];
+
+    for ctrl in ctrls {
+        let mut file = OpenOptions::new().write(true).open(CGROUP_CONTROLLER)?;
+
+        file.write_all(ctrl.as_bytes())?;
+    }
+
     Ok(())
 }
 
