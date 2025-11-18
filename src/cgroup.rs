@@ -7,6 +7,7 @@ const CGROUP_PATH: &str = "/sys/fs/cgroup";
 
 enum Controller {
     Cpu,
+    CpuSet,
     Memory,
     Pids,
 }
@@ -14,7 +15,8 @@ enum Controller {
 impl Controller {
     fn as_str(&self) -> &str {
         match self {
-            Controller::Cpu => "cpuset",
+            Controller::CpuSet => "cpuset",
+            Controller::Cpu => "cpu",
             Controller::Memory => "memory",
             Controller::Pids => "pids",
         }
@@ -22,7 +24,7 @@ impl Controller {
 }
 
 pub struct CgroupBuilder<'a> {
-    name: String,
+    name: &'a str,
     memory_limit: Option<&'a [u8]>,
     cpu_limit: Option<&'a [u8]>,
     pids_limit: Option<&'a [u8]>,
@@ -31,9 +33,9 @@ pub struct CgroupBuilder<'a> {
 }
 
 impl<'a> CgroupBuilder<'a> {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &'a str) -> Self {
         CgroupBuilder {
-            name: name.to_string(),
+            name: name,
             memory_limit: None,
             cpu_limit: None,
             pids_limit: None,
@@ -42,27 +44,28 @@ impl<'a> CgroupBuilder<'a> {
         }
     }
 
-    pub fn memory_limit(mut self, limit: &'a [u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn memory_limit(mut self, limit: &'a [u8]) -> Self {
         self.memory_limit = Some(limit);
         self.controller.push(Controller::Memory);
-        Ok(self)
+        self
     }
 
-    pub fn cpu_limit(mut self, limit: &'a [u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn cpu_limit(mut self, limit: &'a [u8]) -> Self {
         self.cpu_limit = Some(limit);
         self.controller.push(Controller::Cpu);
-        Ok(self)
+        self.controller.push(Controller::CpuSet);
+        self
     }
 
-    pub fn pids_limit(mut self, limit: &'a [u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn pids_limit(mut self, limit: &'a [u8]) -> Self {
         self.pids_limit = Some(limit);
         self.controller.push(Controller::Pids);
-        Ok(self)
+        self
     }
 
-    pub fn add_task(mut self, pid: u32) -> Result<Self, Box<dyn Error>> {
+    pub fn add_task(mut self, pid: u32) -> Self {
         self.pids = Some(pid);
-        Ok(self)
+        self
     }
 
     fn cgroup_controller_configure(&self) -> Result<(), Box<dyn Error>> {

@@ -1,3 +1,4 @@
+pub(crate) mod capabilities;
 pub(crate) mod cgroup;
 
 use crate::cgroup::CgroupBuilder;
@@ -40,10 +41,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let p_env: Vec<&CStr> = vec![];
 
     let _cgroup = CgroupBuilder::new("mymoulette")
-        .memory_limit(b"1G")?
-        .cpu_limit(b"1000000 1000000")?
-        .pids_limit(b"100")?
-        .add_task(process::id())?
+        .memory_limit(b"1073741824")
+        .cpu_limit(b"100000 100000")
+        .pids_limit(b"100")
+        .add_task(process::id())
         .build()?;
 
     execve(p_path.as_c_str(), &p_args, &p_env)?;
