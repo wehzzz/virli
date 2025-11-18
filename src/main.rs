@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .add_task(process::id())
         .build()?;
 
+    capabilities::capabilities_configure()?;
+
     execve(p_path.as_c_str(), &p_args, &p_env)?;
     Ok(())
 }
