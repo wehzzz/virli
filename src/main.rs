@@ -39,13 +39,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let p_env: Vec<&CStr> = vec![];
 
-    let cgroup = CgroupBuilder::new("mymoulette")
+    let _cgroup = CgroupBuilder::new("mymoulette")
         .memory_limit(b"1G")?
         .cpu_limit(b"1000000 1000000")?
         .pids_limit(b"100")?
+        .add_task(process::id())?
         .build()?;
-
-    cgroup.add_task(process::id())?;
 
     execve(p_path.as_c_str(), &p_args, &p_env)?;
     Ok(())

@@ -27,6 +27,7 @@ pub struct CgroupBuilder<'a> {
     cpu_limit: Option<&'a [u8]>,
     pids_limit: Option<&'a [u8]>,
     controller: Vec<Controller>,
+    pids: Option<u32>,
 }
 
 impl<'a> CgroupBuilder<'a> {
@@ -37,6 +38,7 @@ impl<'a> CgroupBuilder<'a> {
             cpu_limit: None,
             pids_limit: None,
             controller: vec![],
+            pids: None,
         }
     }
 
@@ -55,6 +57,11 @@ impl<'a> CgroupBuilder<'a> {
     pub fn pids_limit(mut self, limit: &'a [u8]) -> Result<Self, Box<dyn Error>> {
         self.pids_limit = Some(limit);
         self.controller.push(Controller::Pids);
+        Ok(self)
+    }
+
+    pub fn add_task(mut self, pid: u32) -> Result<Self, Box<dyn Error>> {
+        self.pids = Some(pid);
         Ok(self)
     }
 
@@ -90,11 +97,10 @@ impl<'a> CgroupBuilder<'a> {
             self.cgroup_configure("pids.max", data)?;
         }
 
-        Ok(self)
-    }
+        if let Some(pid) = self.pids {
+            self.cgroup_configure("cgroup.procs", pid.to_string().as_bytes())?;
+        }
 
-    pub fn add_task(&self, pid: u32) -> Result<(), Box<dyn Error>> {
-        self.cgroup_configure("cgroup.procs", pid.to_string().as_bytes())?;
-        Ok(())
+        Ok(self)
     }
 }
