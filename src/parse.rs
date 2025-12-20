@@ -1,0 +1,73 @@
+use std::error::Error;
+
+pub struct Args<'a> {
+    pub rootfs: Option<&'a str>,
+    pub image: Option<&'a str>,
+    pub volume: Option<&'a str>,
+    pub command: &'a [String],
+}
+
+const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
+ Usage: ./mymoulette [-v student_workdir] <-I docker-img|rootfs-path>
+ moulette_prog [moulette_arg [...] ]
+    rootfs-path is the path to the directory containing the new rootfs (exclusive
+ with -I option)
+    docker-img is an image available on hub.docker.com (exclusive with rootfs path)
+ moulette_prog will be the first program to be launched, must already be in
+ the environment
+    student_workdir is the directory containing the code to grade";
+
+pub fn parse_args<'a>(args: &'a [String]) -> Result<Option<Args<'a>>, Box<dyn Error>> {
+    let mut rootfs = None;
+    let mut image = None;
+    let mut volume = None;
+
+    let mut i = 0;
+    let len = args.len();
+
+    while i < len {
+        let arg = args[i].as_str();
+
+        match arg {
+            "-h" => {
+                println!("{}", USAGE);
+                return Ok(None);
+            }
+            "-v" => {
+                i += 1;
+                if i >= len {
+                    return Err("Missing value for -v".into());
+                }
+                volume = Some(args[i].as_str());
+            }
+            "-I" => {
+                i += 1;
+                if i >= len {
+                    return Err("Missing value for -I".into());
+                }
+                image = Some(args[i].as_str());
+            }
+            val => {
+                if rootfs.is_none() && image.is_none() {
+                    rootfs = Some(val);
+                } else {
+                    let command_slice = &args[i..];
+
+                    if rootfs.is_none() && image.is_none() {
+                        return Err("You must provide a rootfs path or use -I <image>".into());
+                    }
+
+                    return Ok(Some(Args {
+                        rootfs,
+                        image,
+                        volume,
+                        command: command_slice,
+                    }));
+                }
+            }
+        }
+        i += 1;
+    }
+
+    Err("You must provide a command to execute".into())
+}

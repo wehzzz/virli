@@ -1,5 +1,7 @@
 pub(crate) mod capabilities;
 pub(crate) mod cgroup;
+pub(crate) mod chroot;
+pub(crate) mod parse;
 
 use crate::cgroup::CgroupBuilder;
 
@@ -20,19 +22,16 @@ const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
     student_workdir is the directory containing the code to grade";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().skip(1).collect();
-    if args.len() < 1 {
-        eprintln!("{}", USAGE);
-        return Err(("Too few arguments").into());
-    }
+    let raw_args: Vec<String> = env::args().skip(1).collect();
 
-    if args.get(0) == Some(&"-h".to_string()) {
-        eprintln!("{}", USAGE);
-        return Ok(());
-    }
+    let args = match parse::parse_args(&raw_args)? {
+        Some(a) => a,
+        None => return Ok(()), // We want to return in case of -h
+    };
 
-    let p_path = CString::new(args[0].as_str())?;
+    let p_path = CString::new(args.command[0].as_str())?;
     let args_: Vec<CString> = args
+        .command
         .iter()
         .map(|s| CString::new(s.as_str()).map_err(|e| Box::new(e) as Box<dyn Error>))
         .collect::<Result<_, _>>()?;
@@ -46,6 +45,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .pids_limit(b"100")
         .add_task(process::id())
         .build()?;
+
+    chroot::isolate_fs(args.rootfs)?;
 
     capabilities::capabilities_configure()?;
 
