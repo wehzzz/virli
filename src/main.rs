@@ -11,16 +11,6 @@ use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::process;
 
-const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
- Usage: ./mymoulette [-v student_workdir] <-I docker-img|rootfs-path>
- moulette_prog [moulette_arg [...] ]
-    rootfs-path is the path to the directory containing the new rootfs (exclusive
- with -I option)
-    docker-img is an image available on hub.docker.com (exclusive with rootfs path)
- moulette_prog will be the first program to be launched, must already be in
- the environment
-    student_workdir is the directory containing the code to grade";
-
 fn main() -> Result<(), Box<dyn Error>> {
     let raw_args: Vec<String> = env::args().skip(1).collect();
 
