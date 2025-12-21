@@ -2,6 +2,7 @@ pub(crate) mod capabilities;
 pub(crate) mod cgroup;
 pub(crate) mod chroot;
 pub(crate) mod parse;
+pub(crate) mod seccomp;
 
 use crate::cgroup::CgroupBuilder;
 
@@ -15,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let raw_args: Vec<String> = env::args().skip(1).collect();
 
     let args = match parse::parse_args(&raw_args)? {
-        Some(a) => a,
+        Some(elt) => elt,
         None => return Ok(()), // We want to return in case of -h
     };
 
@@ -37,6 +38,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
 
     chroot::isolate_fs(args.rootfs)?;
+
+    let _seccomp = seccomp::SeccompBuilder::new()?
+        .add_syscall("nfsservctl")?
+        .add_syscall("personality")?
+        .add_syscall("pivot_root")?
+        .apply()?;
 
     capabilities::capabilities_configure()?;
 
