@@ -47,23 +47,26 @@ pub fn parse_args<'a>(args: &'a [String]) -> Result<Option<Args<'a>>, Box<dyn Er
                 }
                 image = Some(args[i].as_str());
             }
-            val => {
-                if rootfs.is_none() && image.is_none() {
-                    rootfs = Some(val);
-                } else {
-                    let command_slice = &args[i..];
-
-                    if rootfs.is_none() && image.is_none() {
-                        return Err("You must provide a rootfs path or use -I <image>".into());
-                    }
-
-                    return Ok(Some(Args {
-                        rootfs,
-                        image,
-                        volume,
-                        command: command_slice,
-                    }));
+            "-R" => {
+                i += 1;
+                if i >= len {
+                    return Err("Missing value for -R".into());
                 }
+                rootfs = Some(args[i].as_str());
+            }
+            _ => {
+                let command_slice = &args[i..];
+
+                if rootfs.is_none() && image.is_none() {
+                    return Err("You must provide a rootfs path or use -I <image>".into());
+                }
+
+                return Ok(Some(Args {
+                    rootfs,
+                    image,
+                    volume,
+                    command: command_slice,
+                }));
             }
         }
         i += 1;
