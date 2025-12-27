@@ -1,6 +1,7 @@
 pub(crate) mod capabilities;
 pub(crate) mod cgroup;
 pub(crate) mod chroot;
+pub(crate) mod oci;
 pub(crate) mod parse;
 pub(crate) mod seccomp;
 
@@ -37,7 +38,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .add_task(process::id())
         .build()?;
 
-    chroot::isolate_fs(args.rootfs)?;
+    let mut rootfs = args.rootfs;
+    let _tmp_dir;
+    if args.image.is_some() {
+        _tmp_dir = oci::fetch_and_extract_image(args.image)?;
+        rootfs = match _tmp_dir.path().to_str() {
+            Some(p) => Some(p),
+            None => return Err("Failed to convert temp dir path to str".into()),
+        };
+    }
+
+    chroot::isolate_fs(rootfs)?;
 
     let _seccomp = seccomp::SeccompBuilder::new()?
         .add_syscall("nfsservctl")?

@@ -2,7 +2,7 @@ FROM rust:alpine3.22 AS build
 
 WORKDIR /app
 
-RUN apk add --no-cache musl-dev libseccomp-dev libseccomp-static
+RUN apk add --no-cache musl-dev libseccomp-dev libseccomp-static openssl-dev openssl-libs-static pkgconf
 
 COPY src ./src
 COPY Cargo.toml .
