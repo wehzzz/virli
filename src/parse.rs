@@ -1,7 +1,8 @@
 use std::error::Error;
+use std::path::PathBuf;
 
 pub struct Args<'a> {
-    pub rootfs: Option<&'a str>,
+    pub rootfs: Option<PathBuf>,
     pub image: Option<&'a str>,
     pub volume: Option<&'a str>,
     pub command: &'a [String],
@@ -52,7 +53,7 @@ pub fn parse_args<'a>(args: &'a [String]) -> Result<Option<Args<'a>>, Box<dyn Er
                 if i >= len {
                     return Err("Missing value for -R".into());
                 }
-                rootfs = Some(args[i].as_str());
+                rootfs = Some(PathBuf::from(&args[i]));
             }
             _ => {
                 let command_slice = &args[i..];

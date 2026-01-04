@@ -1,10 +1,8 @@
 use flate2::read::GzDecoder;
-use reqwest::blocking::Client;
-use reqwest::header;
+use reqwest::{blocking::Client, header};
 use serde::Deserialize;
-use std::error::Error;
+use std::{env, error::Error, fs, path::PathBuf};
 use tar::Archive;
-use tempfile::TempDir;
 
 #[derive(Deserialize)]
 struct TokenResponse {
@@ -38,12 +36,37 @@ struct Layer {
     digest: String,
 }
 
-pub fn fetch_and_extract_image(image: Option<&str>) -> Result<TempDir, Box<dyn Error>> {
+const DOCKER_HUB_URL: &str = "https://registry-1.docker.io";
+const DOCKER_HUB_AUTH_URL: &str = "https://auth.docker.io/token";
+const CACHE_DIR: &str = ".cache/virli/images";
+
+fn get_image_path(image_name: &str) -> PathBuf {
+    let safe_name = image_name.replace("/", "_").replace(":", "_");
+
+    let home = match env::var("HOME") {
+        Ok(path) => path,
+        Err(_) => "/tmp".to_string(),
+    };
+
+    let mut path = PathBuf::from(home);
+    path.push(CACHE_DIR);
+    path.push(safe_name);
+
+    path
+}
+
+pub fn fetch_and_extract_image(image: Option<&str>) -> Result<PathBuf, Box<dyn Error>> {
     let image = match image {
         Some(img) => img,
         None => return Err("No image specified".into()),
     };
 
+    let rootfs_path = get_image_path(image);
+    if rootfs_path.exists() {
+        return Ok(rootfs_path);
+    }
+
+    fs::create_dir_all(&rootfs_path)?;
     let (image_name, image_tag) = if image.contains(':') {
         let parts: Vec<&str> = image.split(':').collect();
         (parts[0], parts[1])
@@ -60,16 +83,16 @@ pub fn fetch_and_extract_image(image: Option<&str>) -> Result<TempDir, Box<dyn E
     // We need to get an authentication token first
     let client = Client::new();
     let auth_url = format!(
-        "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{}:pull",
-        repository
+        "{}?service=registry.docker.io&scope=repository:{}:pull",
+        DOCKER_HUB_AUTH_URL, repository
     );
     let auth_resp: TokenResponse = client.get(&auth_url).send()?.json()?;
     let token = auth_resp.token;
 
     // Then we can get the manifest or manifest list
     let manifest_url = format!(
-        "https://registry-1.docker.io/v2/{}/manifests/{}",
-        repository, image_tag
+        "{}/v2/{}/manifests/{}",
+        DOCKER_HUB_URL, repository, image_tag
     );
     let response: serde_json::Value = client
         .get(&manifest_url)
@@ -94,8 +117,8 @@ pub fn fetch_and_extract_image(image: Option<&str>) -> Result<TempDir, Box<dyn E
             .ok_or("No amd64/linux manifest found")?;
 
         let manifest_url = format!(
-            "https://registry-1.docker.io/v2/{}/manifests/{}",
-            repository, amd64_manifest.digest
+            "{}/v2/{}/manifests/{}",
+            DOCKER_HUB_URL, repository, amd64_manifest.digest
         );
         client
             .get(&manifest_url)
@@ -110,13 +133,10 @@ pub fn fetch_and_extract_image(image: Option<&str>) -> Result<TempDir, Box<dyn E
         serde_json::from_value(response)?
     };
 
-    let temp_dir = TempDir::new()?;
-    let rootfs_path = temp_dir.path();
-
     for layer in manifest_resp.layers {
         let layer_url = format!(
-            "https://registry-1.docker.io/v2/{}/blobs/{}",
-            repository, layer.digest
+            "{}/v2/{}/blobs/{}",
+            DOCKER_HUB_URL, repository, layer.digest
         );
         let layer_resp = client
             .get(&layer_url)
@@ -125,8 +145,8 @@ pub fn fetch_and_extract_image(image: Option<&str>) -> Result<TempDir, Box<dyn E
 
         let mut gz = GzDecoder::new(layer_resp);
         let mut archive = Archive::new(&mut gz);
-        archive.unpack(rootfs_path)?;
+        archive.unpack(&rootfs_path)?;
     }
 
-    Ok(temp_dir)
+    Ok(rootfs_path)
 }

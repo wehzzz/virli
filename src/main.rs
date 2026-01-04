@@ -38,15 +38,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .add_task(process::id())
         .build()?;
 
-    let mut rootfs = args.rootfs;
-    let _tmp_dir;
-    if args.image.is_some() {
-        _tmp_dir = oci::fetch_and_extract_image(args.image)?;
-        rootfs = match _tmp_dir.path().to_str() {
-            Some(p) => Some(p),
-            None => return Err("Failed to convert temp dir path to str".into()),
-        };
-    }
+    let rootfs = match args.image {
+        Some(_) => Some(oci::fetch_and_extract_image(args.image)?),
+        None => args.rootfs,
+    };
 
     chroot::isolate_fs(rootfs)?;
 
