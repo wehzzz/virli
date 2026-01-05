@@ -68,7 +68,7 @@ pub fn fetch_and_extract_image(cache: &PathBuf, image: &str) -> Result<(), Box<d
 
     fs::create_dir_all(&cache)?;
     let (image_name, image_tag) = if image.contains(':') {
-        let parts: Vec<&str> = image.split(':').collect();
+        let parts: Vec<&str> = image.splitn(2, ':').collect();
         (parts[0], parts[1])
     } else {
         (image, "latest")
