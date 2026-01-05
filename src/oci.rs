@@ -40,9 +40,11 @@ const DOCKER_HUB_URL: &str = "https://registry-1.docker.io";
 const DOCKER_HUB_AUTH_URL: &str = "https://auth.docker.io/token";
 const CACHE_DIR: &str = ".cache/virli/images";
 
-fn get_image_path(image_name: &str) -> PathBuf {
-    let safe_name = image_name.replace("/", "_").replace(":", "_");
-
+pub fn get_image_path(image_name: &str) -> PathBuf {
+    let (name_part, tag) = match image_name.rsplit_once(':') {
+        Some((n, t)) => (n, t),
+        None => (image_name, "latest"),
+    };
     let home = match env::var("HOME") {
         Ok(path) => path,
         Err(_) => "/tmp".to_string(),
@@ -50,23 +52,21 @@ fn get_image_path(image_name: &str) -> PathBuf {
 
     let mut path = PathBuf::from(home);
     path.push(CACHE_DIR);
-    path.push(safe_name);
+
+    for part in name_part.split('/') {
+        path.push(part);
+    }
+    path.push(tag);
 
     path
 }
 
-pub fn fetch_and_extract_image(image: Option<&str>) -> Result<PathBuf, Box<dyn Error>> {
-    let image = match image {
-        Some(img) => img,
-        None => return Err("No image specified".into()),
-    };
-
-    let rootfs_path = get_image_path(image);
-    if rootfs_path.exists() {
-        return Ok(rootfs_path);
+pub fn fetch_and_extract_image(cache: &PathBuf, image: &str) -> Result<(), Box<dyn Error>> {
+    if cache.exists() {
+        return Ok(());
     }
 
-    fs::create_dir_all(&rootfs_path)?;
+    fs::create_dir_all(&cache)?;
     let (image_name, image_tag) = if image.contains(':') {
         let parts: Vec<&str> = image.split(':').collect();
         (parts[0], parts[1])
@@ -145,8 +145,8 @@ pub fn fetch_and_extract_image(image: Option<&str>) -> Result<PathBuf, Box<dyn E
 
         let mut gz = GzDecoder::new(layer_resp);
         let mut archive = Archive::new(&mut gz);
-        archive.unpack(&rootfs_path)?;
+        archive.unpack(&cache)?;
     }
 
-    Ok(rootfs_path)
+    Ok(())
 }

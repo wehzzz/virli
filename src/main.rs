@@ -11,6 +11,7 @@ use nix::unistd::execve;
 use std::env;
 use std::error::Error;
 use std::ffi::{CStr, CString};
+use std::fs;
 use std::process;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -39,7 +40,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
 
     let rootfs = match args.image {
-        Some(_) => Some(oci::fetch_and_extract_image(args.image)?),
+        Some(image) => {
+            let cache = oci::get_image_path(image);
+            match oci::fetch_and_extract_image(&cache, image) {
+                Ok(_) => Some(cache),
+                Err(e) => {
+                    fs::remove_dir_all(&cache)?;
+                    return Err(e);
+                }
+            }
+        }
         None => args.rootfs,
     };
 
