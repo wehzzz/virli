@@ -1,9 +1,8 @@
-use nix::mount::{MsFlags, mount};
 use nix::sched::{CloneFlags, unshare};
-use nix::unistd::{getgid, getuid};
+use nix::unistd::{getgid, getuid, sethostname};
 use std::error::Error;
-use std::fs::{self};
-use std::path::PathBuf;
+use std::fs::{self, File};
+use std::io::Read;
 
 pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     let uid = getuid();
@@ -27,53 +26,30 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn setup_mounts(rootfs: &Option<PathBuf>) -> Result<(), Box<dyn Error>> {
-    let rootfs = match rootfs {
-        Some(path) => path,
-        None => return Err("Root filesystem not provided".into()),
+fn generate_hostname() -> Result<String, Box<dyn Error>> {
+    let mut file = File::open("/dev/urandom")?;
+    let mut buffer = [0u8; 12];
+    file.read_exact(&mut buffer)?;
+
+    let chars: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+    let hostname: String = buffer
+        .iter()
+        .map(|&byte| {
+            let idx = (byte as usize) % chars.len();
+            chars[idx] as char
+        })
+        .collect();
+
+    Ok(hostname)
+}
+
+pub fn setup_hostname() -> Result<(), Box<dyn Error>> {
+    let hostname = match generate_hostname() {
+        Ok(name) => name,
+        Err(_) => "moulette-fallback".to_string(),
     };
 
-    mount(
-        None::<&str>,
-        "/",
-        None::<&str>,
-        MsFlags::MS_PRIVATE | MsFlags::MS_REC,
-        None::<&str>,
-    )
-    .map_err(|e| format!("mount MS_PRIVATE /: {}", e))?;
-
-    let proc_path = rootfs.join("proc");
-    fs::create_dir_all(&proc_path)?;
-    mount(
-        Some("proc"),
-        proc_path.as_path(),
-        Some("proc"),
-        MsFlags::empty(),
-        None::<&str>,
-    )
-    .map_err(|e| format!("mount proc: {}", e))?;
-
-    let sys_path = rootfs.join("sys");
-    fs::create_dir_all(&sys_path)?;
-    mount(
-        Some("sysfs"),
-        sys_path.as_path(),
-        Some("sysfs"),
-        MsFlags::empty(),
-        None::<&str>,
-    )
-    .map_err(|e| format!("mount sysfs: {}", e))?;
-
-    let dev_path = rootfs.join("dev");
-    fs::create_dir_all(&dev_path)?;
-    mount(
-        Some("tmpfs"),
-        dev_path.as_path(),
-        Some("tmpfs"),
-        MsFlags::MS_NOSUID | MsFlags::MS_NOEXEC,
-        Some("mode=755"),
-    )
-    .map_err(|e| format!("mount tmpfs /dev: {}", e))?;
-
+    sethostname(hostname)?;
     Ok(())
 }

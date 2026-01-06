@@ -4,7 +4,7 @@ use std::path::PathBuf;
 pub struct Args<'a> {
     pub rootfs: Option<PathBuf>,
     pub image: Option<&'a str>,
-    pub volume: Option<&'a str>,
+    pub volume: Option<PathBuf>,
     pub command: &'a [String],
 }
 
@@ -39,7 +39,7 @@ pub fn parse_args<'a>(args: &'a [String]) -> Result<Option<Args<'a>>, Box<dyn Er
                 if i >= len {
                     return Err("Missing value for -v".into());
                 }
-                volume = Some(args[i].as_str());
+                volume = Some(PathBuf::from(&args[i]));
             }
             "-I" => {
                 i += 1;

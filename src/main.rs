@@ -1,6 +1,7 @@
 pub(crate) mod capabilities;
 pub(crate) mod cgroup;
 pub(crate) mod chroot;
+pub(crate) mod mounts;
 pub(crate) mod namespace;
 pub(crate) mod oci;
 pub(crate) mod parse;
@@ -9,7 +10,7 @@ pub(crate) mod seccomp;
 use crate::cgroup::CgroupBuilder;
 
 use nix::sys::wait::{WaitStatus, waitpid};
-use nix::unistd::{ForkResult, execve, fork};
+use nix::unistd::{ForkResult, fork};
 use std::env;
 use std::error::Error;
 use std::ffi::{CStr, CString};
@@ -57,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             _ => {}
         },
-        ForkResult::Child => match child_routine(&args.command, &rootfs) {
+        ForkResult::Child => match child_routine(&args.command, &rootfs, &args.volume) {
             Ok(_) => (),
             Err(e) => {
                 eprintln!("Container failed: {}", e);
@@ -72,8 +73,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn child_routine(
     args: &[String],
     rootfs: &Option<std::path::PathBuf>,
+    volume: &Option<std::path::PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
-    namespace::setup_mounts(rootfs)?;
+    namespace::setup_hostname()?;
+
+    mounts::mount_sysfs(rootfs)?;
+    mounts::mount_volume(rootfs, volume)?;
 
     chroot::isolate_fs(rootfs)?;
 
@@ -85,16 +90,13 @@ fn child_routine(
 
     capabilities::capabilities_configure()?;
 
-    let p_path = CString::new(args[0].as_str())?;
     let args_: Vec<CString> = args
         .iter()
         .map(|s| CString::new(s.as_str()).map_err(|e| Box::new(e) as Box<dyn Error>))
         .collect::<Result<_, _>>()?;
     let p_args: Vec<&CStr> = args_.iter().map(|s| s.as_c_str()).collect();
 
-    let p_env: Vec<&CStr> = vec![];
-
-    execve(p_path.as_c_str(), &p_args, &p_env)?;
+    nix::unistd::execvp(p_args[0], &p_args)?;
 
     Ok(())
 }
