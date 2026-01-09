@@ -90,9 +90,14 @@ impl<'a> CgroupBuilder<'a> {
 
         fs::create_dir_all(format!("{}/{}", CGROUP_PATH, self.name))?;
 
+        if let Some(pid) = self.pids {
+            self.cgroup_configure("cgroup.procs", pid.to_string().as_bytes())?;
+        }
+
         if let Some(data) = self.cpu_limit {
             self.cgroup_configure("cpu.max", data)?;
         }
+
         if let Some(data) = self.memory_limit {
             self.cgroup_configure("memory.max", data)?;
         }
@@ -100,10 +105,19 @@ impl<'a> CgroupBuilder<'a> {
             self.cgroup_configure("pids.max", data)?;
         }
 
-        if let Some(pid) = self.pids {
-            self.cgroup_configure("cgroup.procs", pid.to_string().as_bytes())?;
-        }
+        Ok(CgroupBuilder {
+            name: self.name,
+            memory_limit: None,
+            cpu_limit: None,
+            pids_limit: None,
+            controller: vec![],
+            pids: None,
+        })
+    }
 
-        Ok(self)
+    pub fn cleanup(&self) -> Result<(), Box<dyn Error>> {
+        let path = format!("{}/{}", CGROUP_PATH, self.name);
+        fs::remove_dir(&path)?;
+        Ok(())
     }
 }

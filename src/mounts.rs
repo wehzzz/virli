@@ -46,10 +46,22 @@ pub fn mount_sysfs(rootfs: &Option<PathBuf>) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(&dev_path)?;
     }
     mount(
-        Some("/dev"),
+        Some("tmpfs"),
         &dev_path,
+        Some("tmpfs"),
+        MsFlags::MS_NOSUID | MsFlags::MS_NOEXEC,
         None::<&str>,
-        MsFlags::MS_BIND | MsFlags::MS_REC,
+    )?;
+
+    let sys_path = rootfs_path.join("sys");
+    if !sys_path.exists() {
+        fs::create_dir_all(&sys_path)?;
+    }
+    mount(
+        Some("sysfs"),
+        &sys_path,
+        Some("sysfs"),
+        MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_RDONLY,
         None::<&str>,
     )?;
 

@@ -1,3 +1,4 @@
+use libc::{PR_SET_DUMPABLE, prctl};
 use nix::sched::{CloneFlags, unshare};
 use nix::unistd::{getgid, getuid, sethostname};
 use std::error::Error;
@@ -9,10 +10,17 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     let gid = getgid();
 
     unshare(CloneFlags::CLONE_NEWUSER)?;
+    // Adding capabilities with sudo to our binary set the dumpable flag to 0 by default
+    // We need to set it back to 1 to be able to write uid_map and gid_map
+    unsafe {
+        prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+    }
 
-    fs::write("/proc/self/setgroups", "deny")?;
-    fs::write("/proc/self/uid_map", format!("0 {} 1\n", uid))?;
-    fs::write("/proc/self/gid_map", format!("0 {} 1\n", gid))?;
+    let _ = fs::write("/proc/self/setgroups", "deny");
+    fs::write("/proc/self/uid_map", format!("0 {} 1\n", uid))
+        .map_err(|e| format!("write uid_map: {}", e))?;
+    fs::write("/proc/self/gid_map", format!("0 {} 1\n", gid))
+        .map_err(|e| format!("write gid_map: {}", e))?;
 
     let flags = CloneFlags::CLONE_NEWNS
         | CloneFlags::CLONE_NEWPID
