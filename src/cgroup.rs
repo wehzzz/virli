@@ -1,6 +1,5 @@
-use std::error::Error;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::{error::Error, io::Write};
 
 const CGROUP_CONTROLLER: &str = "/sys/fs/cgroup/cgroup.subtree_control";
 const CGROUP_PATH: &str = "/sys/fs/cgroup";

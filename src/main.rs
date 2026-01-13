@@ -11,11 +11,8 @@ use crate::cgroup::CgroupBuilder;
 
 use nix::sys::wait::{WaitStatus, waitpid};
 use nix::unistd::{ForkResult, fork};
-use std::env;
-use std::error::Error;
 use std::ffi::{CStr, CString};
-use std::fs;
-use std::process;
+use std::{env, error::Error, fs, process};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let raw_args: Vec<String> = env::args().skip(1).collect();
@@ -88,10 +85,18 @@ fn child_routine(
 ) -> Result<(), Box<dyn Error>> {
     namespace::setup_hostname().map_err(|e| format!("hostname setup: {}", e))?;
 
-    mounts::mount_sysfs(rootfs).map_err(|e| format!("mount_sysfs: {}", e))?;
-    mounts::mount_volume(rootfs, volume).map_err(|e| format!("mount_volume: {}", e))?;
+    // We want to create overlayfs in order to make changes in the container without affecting the base image
+    let root_overlayfs_path = std::path::PathBuf::from(format!(
+        "/tmp/mymoulette_{}",
+        namespace::generate_hostname()?
+    ));
+    std::fs::create_dir_all(&root_overlayfs_path)?;
+    let root_overlayfs = mounts::mount_overlayfs(rootfs, &root_overlayfs_path)?;
 
-    chroot::isolate_fs(rootfs).map_err(|e| format!("chroot: {}", e))?;
+    mounts::mount_sysfs(&root_overlayfs).map_err(|e| format!("mount_sysfs: {}", e))?;
+    mounts::mount_volume(&root_overlayfs, volume).map_err(|e| format!("mount_volume: {}", e))?;
+
+    chroot::isolate_pivot(&root_overlayfs).map_err(|e| format!("pivot_root : {}", e))?;
 
     let _seccomp = seccomp::SeccompBuilder::new()?
         .add_syscall("nfsservctl")?

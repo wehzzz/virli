@@ -1,5 +1,4 @@
-use std::error::Error;
-use std::path::PathBuf;
+use std::{error::Error, path::PathBuf};
 
 pub struct Args<'a> {
     pub rootfs: Option<PathBuf>,

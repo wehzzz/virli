@@ -1,9 +1,11 @@
 use libc::{PR_SET_DUMPABLE, prctl};
 use nix::sched::{CloneFlags, unshare};
 use nix::unistd::{getgid, getuid, sethostname};
-use std::error::Error;
-use std::fs::{self, File};
-use std::io::Read;
+use std::{
+    error::Error,
+    fs::{self, File},
+    io::Read,
+};
 
 pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     let uid = getuid();
@@ -16,7 +18,7 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
         prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
     }
 
-    let _ = fs::write("/proc/self/setgroups", "deny");
+    fs::write("/proc/self/setgroups", "deny").map_err(|e| format!("write setgroups: {}", e))?;
     fs::write("/proc/self/uid_map", format!("0 {} 1\n", uid))
         .map_err(|e| format!("write uid_map: {}", e))?;
     fs::write("/proc/self/gid_map", format!("0 {} 1\n", gid))
@@ -34,7 +36,7 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn generate_hostname() -> Result<String, Box<dyn Error>> {
+pub fn generate_hostname() -> Result<String, Box<dyn Error>> {
     let mut file = File::open("/dev/urandom")?;
     let mut buffer = [0u8; 12];
     file.read_exact(&mut buffer)?;
