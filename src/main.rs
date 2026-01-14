@@ -14,14 +14,23 @@ use nix::unistd::{ForkResult, fork};
 use std::ffi::{CStr, CString};
 use std::{env, error::Error, fs, process};
 
+const TMP_DIR_PREFIX: &str = "/tmp/mymoulette_";
+
+const CGROUP_NAME: &str = "mymoulette";
+const MEMORY_LIMIT: &str = "1073741824";
+const CPU_LIMIT: &str = "100000 100000";
+const PIDS_LIMIT: &str = "100";
+
 fn main() -> Result<(), Box<dyn Error>> {
     let raw_args: Vec<String> = env::args().skip(1).collect();
 
+    // Parse command line arguments
     let args = match parse::parse_args(&raw_args)? {
         Some(elt) => elt,
         None => return Ok(()), // We want to return in case of -h
     };
 
+    // Prepare rootfs, either from a provided rootfs or by fetching a Docker image
     let rootfs = match args.image {
         Some(image) => {
             let cache = oci::get_image_path(image);
@@ -41,13 +50,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => args.rootfs,
     };
 
-    let mut cgroup = CgroupBuilder::new("mymoulette")
-        .memory_limit(b"1073741824")
-        .cpu_limit(b"100000 100000")
-        .pids_limit(b"100")
+    let mut cgroup = CgroupBuilder::new(CGROUP_NAME)
+        .memory_limit(MEMORY_LIMIT.as_bytes())
+        .cpu_limit(CPU_LIMIT.as_bytes())
+        .pids_limit(PIDS_LIMIT.as_bytes())
         .build()
         .map_err(|e| format!("cgroup build: {}", e))?;
 
+    // First Fork: Create a supervisor process in order to manage the container lifecycle
     match unsafe { fork() }? {
         ForkResult::Parent { child } => {
             cgroup = cgroup
@@ -64,6 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         ForkResult::Child => {
             namespace::namespace_configure().map_err(|e| format!("namespace configure: {}", e))?;
 
+            // Second Fork: Necessary to properly become PID 1 in the new PID namespace
             match unsafe { fork() }? {
                 ForkResult::Parent { child } => match waitpid(child, None)? {
                     WaitStatus::Exited(_, code) => process::exit(code),
@@ -91,8 +102,10 @@ fn child_routine(
     namespace::setup_hostname().map_err(|e| format!("hostname setup: {}", e))?;
 
     // We want to create overlayfs in order to make changes in the container without affecting the base image
+    // This allows the container to have a read-write layer over the read-only image
     let root_overlayfs_path = std::path::PathBuf::from(format!(
-        "/tmp/mymoulette_{}",
+        "{}{}",
+        TMP_DIR_PREFIX,
         namespace::generate_hostname()?
     ));
     std::fs::create_dir_all(&root_overlayfs_path)?;
@@ -104,9 +117,9 @@ fn child_routine(
     chroot::isolate_pivot(&root_overlayfs).map_err(|e| format!("pivot_root : {}", e))?;
 
     let _seccomp = seccomp::SeccompBuilder::new()?
-        .add_syscall("nfsservctl")?
-        .add_syscall("personality")?
-        .add_syscall("pivot_root")?
+        .add_syscall(seccomp::Syscall::Nfsservctl)?
+        .add_syscall(seccomp::Syscall::Personality)?
+        .add_syscall(seccomp::Syscall::PivotRoot)?
         .apply()
         .map_err(|e| format!("seccomp: {}", e))?;
 

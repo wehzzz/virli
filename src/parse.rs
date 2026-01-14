@@ -1,9 +1,14 @@
 use std::{error::Error, path::PathBuf};
 
+/// Arguments parsed from the command line.
 pub struct Args<'a> {
+    /// Path to the root filesystem.
     pub rootfs: Option<PathBuf>,
+    /// Docker image name to pull/use.
     pub image: Option<&'a str>,
+    /// Volume path on the host to mount into the container.
     pub volume: Option<PathBuf>,
+    /// Command to execute inside the container, along with its arguments.
     pub command: &'a [String],
 }
 
@@ -17,6 +22,20 @@ const USAGE: &str = "MyMoulette, the students'nightmare, now highly secured
  the environment
     student_workdir is the directory containing the code to grade";
 
+/// Parses command line arguments.
+///
+/// Handles custom flags for volume (-v), image (-I), and rootfs (-R).
+/// The remaining arguments are treated as the command to execute.
+///
+/// # Arguments
+///
+/// * `args` - Command line arguments.
+///
+/// # Returns
+///
+/// Returns `Ok(Some(Args))` if parsing is successful.
+/// Returns `Ok(None)` if help flag (-h) is present.
+/// Returns `Err` if required arguments are missing or invalid.
 pub fn parse_args<'a>(args: &'a [String]) -> Result<Option<Args<'a>>, Box<dyn Error>> {
     let mut rootfs = None;
     let mut image = None;

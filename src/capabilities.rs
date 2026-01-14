@@ -1,6 +1,13 @@
 use caps::{CapSet, Capability};
 use std::error::Error;
 
+/// Configures Linux capabilities for the process.
+///
+/// Clears effective and inheritable capabilities, restricts permitted capabilities
+/// to only include `CAP_NET_RAW`, and then raises `CAP_NET_RAW` in the effective,
+/// inheritable, and ambient sets.
+///
+/// This ensures the process has the minimum necessary privileges for networking operations.
 pub fn capabilities_configure() -> Result<(), Box<dyn Error>> {
     caps::clear(None, CapSet::Effective)?;
     caps::clear(None, CapSet::Inheritable)?;

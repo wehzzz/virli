@@ -7,6 +7,27 @@ use std::{
     io::Read,
 };
 
+const HOSTNAME_LENGTH: usize = 12;
+const HOSTNAME_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const HOSTNAME_FALLBACK: &str = "mymoulette";
+const RANDOM_DEVICE: &str = "/dev/urandom";
+
+const SETGROUPS_PATH: &str = "/proc/self/setgroups";
+const UID_MAP_PATH: &str = "/proc/self/uid_map";
+const GID_MAP_PATH: &str = "/proc/self/gid_map";
+
+/// Configures Linux namespaces internally within the process.
+///
+/// This moves the process into new namespaces:
+/// * User
+/// * Mount
+/// * PID
+/// * IPC
+/// * Network
+/// * UTS
+/// * Cgroup
+///
+/// It also handles the user mapping setup required for unprivileged user namespaces.
 pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     let uid = getuid();
     let gid = getgid();
@@ -19,10 +40,10 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
         return Err(std::io::Error::last_os_error().into());
     }
 
-    fs::write("/proc/self/setgroups", "deny").map_err(|e| format!("write setgroups: {}", e))?;
-    fs::write("/proc/self/uid_map", format!("0 {} 1\n", uid))
+    fs::write(SETGROUPS_PATH, "deny").map_err(|e| format!("write setgroups: {}", e))?;
+    fs::write(UID_MAP_PATH, format!("0 {} 1\n", uid))
         .map_err(|e| format!("write uid_map: {}", e))?;
-    fs::write("/proc/self/gid_map", format!("0 {} 1\n", gid))
+    fs::write(GID_MAP_PATH, format!("0 {} 1\n", gid))
         .map_err(|e| format!("write gid_map: {}", e))?;
 
     let flags = CloneFlags::CLONE_NEWNS
@@ -37,12 +58,15 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Generates a random hostname string.
+///
+/// Returns a 12-character alphanumeric string.
 pub fn generate_hostname() -> Result<String, Box<dyn Error>> {
-    let mut file = File::open("/dev/urandom")?;
-    let mut buffer = [0u8; 12];
+    let mut file = File::open(RANDOM_DEVICE)?;
+    let mut buffer = [0u8; HOSTNAME_LENGTH];
     file.read_exact(&mut buffer)?;
 
-    let chars: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let chars: &[u8] = HOSTNAME_CHARS;
 
     let hostname: String = buffer
         .iter()
@@ -55,10 +79,13 @@ pub fn generate_hostname() -> Result<String, Box<dyn Error>> {
     Ok(hostname)
 }
 
+/// Sets the container's hostname.
+///
+/// Generates a random hostname and applies it using `sethostname`.
 pub fn setup_hostname() -> Result<(), Box<dyn Error>> {
     let hostname = match generate_hostname() {
         Ok(name) => name,
-        Err(_) => "mymoulette".to_string(),
+        Err(_) => HOSTNAME_FALLBACK.to_string(),
     };
 
     sethostname(hostname)?;

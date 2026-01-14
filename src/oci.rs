@@ -39,11 +39,25 @@ struct Layer {
 const DOCKER_HUB_URL: &str = "https://registry-1.docker.io";
 const DOCKER_HUB_AUTH_URL: &str = "https://auth.docker.io/token";
 const CACHE_DIR: &str = ".cache/virli/images";
+const ARCHITECTURE: &str = "amd64";
+const OS: &str = "linux";
+const LATEST_TAG: &str = "latest";
 
+/// Resolves the local cache path for a given image.
+///
+/// Constructs the path based on the user's HOME directory and the image name/tag.
+///
+/// # Arguments
+///
+/// * `image_name` - The image name, potentially including a tag (e.g., "alpine:latest").
+///
+/// # Returns
+///
+/// Returns a `PathBuf` pointing to the directory where the image should be cached.
 pub fn get_image_path(image_name: &str) -> PathBuf {
     let (name_part, tag) = match image_name.rsplit_once(':') {
         Some((n, t)) => (n, t),
-        None => (image_name, "latest"),
+        None => (image_name, LATEST_TAG),
     };
     let home = match env::var("HOME") {
         Ok(path) => path,
@@ -61,6 +75,18 @@ pub fn get_image_path(image_name: &str) -> PathBuf {
     path
 }
 
+/// Fetches a Docker image from Docker Hub and extracts it locally.
+///
+/// This function:
+/// 1. authenticates with Docker Hub.
+/// 2. Fetches the image manifest.
+/// 3. Resolves the correct digest for the current architecture (amd64).
+/// 4. Downloads and extracts the image layers.
+///
+/// # Arguments
+///
+/// * `cache` - The target directory for the extracted image.
+/// * `image` - The image identifier (e.g., "ubuntu:20.04").
 pub fn fetch_and_extract_image(cache: &PathBuf, image: &str) -> Result<(), Box<dyn Error>> {
     if cache.exists() {
         return Ok(());
@@ -108,12 +134,13 @@ pub fn fetch_and_extract_image(cache: &PathBuf, image: &str) -> Result<(), Box<d
         .send()?
         .json()?;
 
+    // In case of manifest list, we need to find the correct manifest for amd64/linux
     let manifest_resp: Manifest = if response.get("manifests").is_some() {
         let manifest_list: ManifestList = serde_json::from_value(response)?;
         let amd64_manifest = manifest_list
             .manifests
             .into_iter()
-            .find(|m| m.platform.architecture == "amd64" && m.platform.os == "linux")
+            .find(|m| m.platform.architecture == ARCHITECTURE && m.platform.os == OS)
             .ok_or("No amd64/linux manifest found")?;
 
         let manifest_url = format!(

@@ -2,17 +2,29 @@ use nix::mount::{MntFlags, MsFlags, mount, umount2};
 use nix::unistd::{chdir, chroot, pivot_root};
 use std::{error::Error, fs, path::PathBuf};
 
+const PUT_OLD_DIR: &str = "/put_old";
+const ROOT_DIR: &str = "/";
+
+/// Old isolation function.
+/// Changes the root directory of the calling process to the specified path.
+///
+/// This is a wrapper around the `chroot` system call.
 pub fn _isolate_fs(rootfs: &PathBuf) -> Result<(), Box<dyn Error>> {
     chroot(rootfs)?;
     chdir("/")?;
     Ok(())
 }
 
-// https://man7.org/linux/man-pages/man2/pivot_root.2.html
+/// https://man7.org/linux/man-pages/man2/pivot_root.2.html
+/// Isolates the filesystem using `pivot_root`.
+///
+/// # Arguments
+///
+/// * `new_root` - The new root filesystem path.
 pub fn isolate_pivot(new_root: &PathBuf) -> Result<(), Box<dyn Error>> {
     mount(
         None::<&str>,
-        "/",
+        ROOT_DIR,
         None::<&str>,
         MsFlags::MS_REC | MsFlags::MS_PRIVATE,
         None::<&str>,
@@ -35,11 +47,11 @@ pub fn isolate_pivot(new_root: &PathBuf) -> Result<(), Box<dyn Error>> {
 
     pivot_root(new_root, &put_old).map_err(|e| format!("Pivot root failed: {}", e))?;
 
-    chdir("/").map_err(|e| format!("Chdir failed: {}", e))?;
+    chdir(ROOT_DIR).map_err(|e| format!("Chdir failed: {}", e))?;
 
-    umount2("/put_old", MntFlags::MNT_DETACH)
+    umount2(PUT_OLD_DIR, MntFlags::MNT_DETACH)
         .map_err(|e| format!("Umount old root failed: {}", e))?;
 
-    fs::remove_dir("/put_old")?;
+    fs::remove_dir(PUT_OLD_DIR)?;
     Ok(())
 }
