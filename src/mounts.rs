@@ -77,7 +77,7 @@ pub fn mount_volume(rootfs: &PathBuf, path: &Option<PathBuf>) -> Result<(), Box<
     };
 
     if !volume_to_mount.exists() {
-        return Ok(());
+        return Err("Volume path does not exist".into());
     }
 
     mount(

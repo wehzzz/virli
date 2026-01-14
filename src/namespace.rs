@@ -14,8 +14,9 @@ pub fn namespace_configure() -> Result<(), Box<dyn Error>> {
     unshare(CloneFlags::CLONE_NEWUSER)?;
     // Adding capabilities with sudo to our binary set the dumpable flag to 0 by default
     // We need to set it back to 1 to be able to write uid_map and gid_map
-    unsafe {
-        prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+    let prctl_ret = unsafe { prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) };
+    if prctl_ret != 0 {
+        return Err(std::io::Error::last_os_error().into());
     }
 
     fs::write("/proc/self/setgroups", "deny").map_err(|e| format!("write setgroups: {}", e))?;
@@ -57,7 +58,7 @@ pub fn generate_hostname() -> Result<String, Box<dyn Error>> {
 pub fn setup_hostname() -> Result<(), Box<dyn Error>> {
     let hostname = match generate_hostname() {
         Ok(name) => name,
-        Err(_) => "moulette-fallback".to_string(),
+        Err(_) => "mymoulette".to_string(),
     };
 
     sethostname(hostname)?;

@@ -28,7 +28,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             match oci::fetch_and_extract_image(&cache, image) {
                 Ok(_) => Some(cache),
                 Err(e) => {
-                    fs::remove_dir_all(&cache)?;
+                    if let Err(cleanup_err) = fs::remove_dir_all(&cache) {
+                        eprintln!(
+                            "Failed to clean up cache directory {:?} after image error: {}. Cleanup error: {}",
+                            &cache, e, cleanup_err
+                        );
+                    }
                     return Err(e);
                 }
             }
