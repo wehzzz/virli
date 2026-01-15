@@ -112,8 +112,7 @@ pub fn fetch_and_extract_image(cache: &PathBuf, image: &str) -> Result<(), Box<d
         "{}?service=registry.docker.io&scope=repository:{}:pull",
         DOCKER_HUB_AUTH_URL, repository
     );
-    let auth_resp: TokenResponse = client.get(&auth_url).send()?.json()?;
-    let token = auth_resp.token;
+    let token = client.get(&auth_url).send()?.json::<TokenResponse>()?.token;
 
     // Then we can get the manifest or manifest list
     let manifest_url = format!(

@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Some(image) => {
             let cache = oci::get_image_path(image);
             match oci::fetch_and_extract_image(&cache, image) {
-                Ok(_) => Some(cache),
+                Ok(_) => cache,
                 Err(e) => {
                     if let Err(cleanup_err) = fs::remove_dir_all(&cache) {
                         eprintln!(
@@ -47,7 +47,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        None => args.rootfs,
+        None => match args.rootfs {
+            Some(path) => path,
+            None => {
+                return Err("Either rootfs path or image must be provided".into());
+            }
+        },
     };
 
     let mut cgroup = CgroupBuilder::new(CGROUP_NAME)
@@ -96,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn child_routine(
     args: &[String],
-    rootfs: &Option<std::path::PathBuf>,
+    rootfs: &std::path::PathBuf,
     volume: &Option<std::path::PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
     namespace::setup_hostname().map_err(|e| format!("hostname setup: {}", e))?;

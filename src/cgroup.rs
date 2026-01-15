@@ -31,6 +31,7 @@ impl Controller {
 ///
 /// This builder allows setting limits for specific controllers
 /// and assigning a process to the created cgroup.
+#[derive(Default)]
 pub struct CgroupBuilder<'a> {
     name: &'a str,
     memory_limit: Option<&'a [u8]>,
@@ -112,7 +113,7 @@ impl<'a> CgroupBuilder<'a> {
             let mut file = OpenOptions::new().write(true).open(CGROUP_CONTROLLER)?;
 
             file.write_all(format!("+{}", c.as_str()).as_bytes())?;
-            Ok::<(), Box<dyn Error>>(())
+            Ok(())
         })
     }
 
@@ -153,11 +154,7 @@ impl<'a> CgroupBuilder<'a> {
 
         Ok(CgroupBuilder {
             name: self.name,
-            memory_limit: None,
-            cpu_limit: None,
-            pids_limit: None,
-            controller: vec![],
-            pids: None,
+            ..Default::default()
         })
     }
 

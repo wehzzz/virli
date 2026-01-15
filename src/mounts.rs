@@ -140,13 +140,13 @@ pub fn mount_volume(rootfs: &PathBuf, path: &Option<PathBuf>) -> Result<(), Box<
 ///
 /// Returns the path to the merged directory which serves as the container's root filesystem.
 pub fn mount_overlayfs(
-    image_path: &Option<PathBuf>,
+    image_path: &PathBuf,
     runtime_dir: &PathBuf,
 ) -> Result<PathBuf, Box<dyn Error>> {
-    let image_path = match image_path {
-        Some(path) => path,
-        None => return Err("Image path not provided".into()),
-    };
+    match (image_path.to_str(), runtime_dir.to_str()) {
+        (Some(_), Some(_)) => (),
+        _ => return Err("Invalid path provided".into()),
+    }
 
     // Prepare directories for OverlayFS
     let lower_dir = image_path;
